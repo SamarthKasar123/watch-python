@@ -18,7 +18,10 @@
                 gap: 1.5rem;
             }
             
-            .chart-container {
+            .chart-conta                // Load statistics
+                const statsResponse = await fetch('/api/stats');
+                const statsResult = await statsResponse.json();
+                updateStats(statsResult.stats || statsResult); {
                 height: 350px;
             }
             
@@ -612,15 +615,15 @@
                 updateStats(stats);
 
                 // Load products
-                const productsResponse = await fetch('/api/products');
+                const productsResponse = await fetch('/api/data');
                 const products = await productsResponse.json();
-                currentData = products;
-                updateProductsList(products);
+                currentData = products.data || products;
+                updateProductsList(products.data || products);
 
                 // Load chart data
-                const brandsResponse = await fetch('/api/brands');
+                const brandsResponse = await fetch('/api/charts/brands');
                 const brands = await brandsResponse.json();
-                updateChart(brands);
+                updateChart(brands.chart_data || brands);
 
             } catch (error) {
                 console.error('Error loading dashboard data:', error);
@@ -628,10 +631,10 @@
         }
 
         function updateStats(stats) {
-            document.getElementById('totalProducts').textContent = stats.total_products || 0;
-            document.getElementById('activeSites').textContent = stats.active_sites || 0;
+            document.getElementById('totalProducts').textContent = stats.total_watches || 0;
+            document.getElementById('activeSites').textContent = stats.total_sites || 0;
             document.getElementById('avgPrice').textContent = stats.avg_price ? `£${stats.avg_price.toLocaleString()}` : '£0';
-            document.getElementById('topBrands').textContent = stats.top_brands || 0;
+            document.getElementById('topBrands').textContent = stats.total_brands || 0;
         }
 
         function updateProductsList(products) {
@@ -783,17 +786,12 @@
             button.disabled = true;
             
             try {
-                const response = await fetch('/api/scrape', { method: 'POST' });
-                const result = await response.json();
-                
-                if (result.success) {
-                    await loadDashboardData();
-                    alert('Scraper completed successfully!');
-                } else {
-                    alert('Scraper failed: ' + result.error);
-                }
+                // Simulate scraper run and refresh data
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                await loadDashboardData();
+                alert('Dashboard data refreshed successfully!');
             } catch (error) {
-                alert('Error running scraper: ' + error.message);
+                alert('Error refreshing data: ' + error.message);
             } finally {
                 button.innerHTML = originalText;
                 button.disabled = false;
