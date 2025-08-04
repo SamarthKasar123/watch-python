@@ -1,2 +1,2 @@
-web: python dashboard/app_simple.py
-# Using no-pandas version for deployment
+web: python dashboard/app.py
+# Using no-pandas version (renamed from app_simple.py)

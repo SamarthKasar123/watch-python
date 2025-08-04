@@ -1,451 +1,201 @@
 #!/usr/bin/env python3
 """
-Professional Watch Scraping Dashboard
-Modern Flask application with real-time data visualization
+Professional Watch Scraping Dashboard - NO PANDAS VERSION
+Pure Python implementation for reliable deployment
 """
 
 import os
 import sys
 import json
-import pandas as pd
 from datetime import datetime
-from flask import Flask, render_template, jsonify, send_file, request
+from flask import Flask, render_template, jsonify, request
 from pathlib import Path
+import csv
 import tempfile
-import subprocess
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
+# Import our simple data loader
+from dashboard.simple_data_loader import (
+    load_watch_data_simple, 
+    get_stats_simple, 
+    get_brand_distribution, 
+    get_site_distribution, 
+    search_watches
+)
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'watch-scraping-dashboard-2025'
 
-# Data paths
-DATA_DIR = project_root / 'data'
-CONSOLIDATED_FILE = DATA_DIR / 'consolidated_watches_live.csv'
+# Global data cache
+_data_cache = None
+_cache_time = None
 
-def load_watch_data():
-    """Load watch data from CSV file"""
-    try:
-        if CONSOLIDATED_FILE.exists():
-            df = pd.read_csv(CONSOLIDATED_FILE)
-            # Clean and prepare data
-            df['price'] = pd.to_numeric(df['price'], errors='coerce')
-            df = df.dropna(subset=['price'])
-            
-            # Clean and enhance brand data
-            df = clean_brand_data(df)
-            
-            # Filter out non-watch items (jewelry, etc.)
-            df = filter_watch_products(df)
-            
-            return df
-        else:
-            # Return empty DataFrame with expected columns
-            return pd.DataFrame(columns=['url', 'site', 'title', 'price', 'currency', 'brand', 'model', 'reference'])
-    except Exception as e:
-        print(f"Error loading data: {e}")
-        return pd.DataFrame(columns=['url', 'site', 'title', 'price', 'currency', 'brand', 'model', 'reference'])
-
-def clean_brand_data(df):
-    """Clean and extract brand information"""
-    # Fill missing brands from title and description
-    for idx, row in df.iterrows():
-        if pd.isna(row.get('brand')) or row.get('brand') == '':
-            # Try to extract brand from title
-            title = str(row.get('title', '')).upper()
-            description = str(row.get('description', '')).upper()
-            url = str(row.get('url', '')).upper()
-            
-            # Common watch brands
-            brands = [
-                'ROLEX', 'OMEGA', 'PATEK PHILIPPE', 'AUDEMARS PIGUET', 'CARTIER',
-                'BREITLING', 'TAG HEUER', 'TUDOR', 'SEIKO', 'TISSOT', 'HAMILTON',
-                'A. LANGE', 'LANGE', 'VACHERON CONSTANTIN', 'JAEGER-LECOULTRE',
-                'IWC', 'PANERAI', 'HUBLOT', 'ZENITH', 'LONGINES'
-            ]
-            
-            extracted_brand = None
-            for brand in brands:
-                if brand in title or brand in description or brand in url:
-                    extracted_brand = brand.title()
-                    if brand == 'A. LANGE' or brand == 'LANGE':
-                        extracted_brand = 'A. Lange & Söhne'
-                    break
-            
-            if extracted_brand:
-                df.at[idx, 'brand'] = extracted_brand
-            else:
-                df.at[idx, 'brand'] = 'Other'
+def get_watch_data():
+    """Get watch data with simple caching"""
+    global _data_cache, _cache_time
     
-    return df
-
-def filter_watch_products(df):
-    """Filter out non-watch products"""
-    # Remove items that are clearly not watches
-    non_watch_keywords = ['pendant', 'necklace', 'earring', 'ring', 'bracelet', 'chain', 'cross']
+    # Cache for 5 minutes
+    if _data_cache is None or _cache_time is None or (datetime.now() - _cache_time).seconds > 300:
+        _data_cache = load_watch_data_simple()
+        _cache_time = datetime.now()
     
-    def is_watch_product(row):
-        title = str(row.get('title', '')).lower()
-        description = str(row.get('description', '')).lower()
-        
-        # If it contains watch-specific terms, it's likely a watch
-        watch_keywords = ['watch', 'timepiece', 'chronograph', 'submariner', 'speedmaster', 'nautilus', 'daytona', 'gmt']
-        if any(keyword in title for keyword in watch_keywords):
-            return True
-            
-        # If it contains non-watch keywords, exclude it
-        if any(keyword in title for keyword in non_watch_keywords):
-            return False
-            
-        # If it's from a watch-specific URL path, include it
-        url = str(row.get('url', '')).lower()
-        if 'watch' in url or 'timepiece' in url:
-            return True
-            
-        # Default to include if we can't determine
-        return True
-    
-    return df[df.apply(is_watch_product, axis=1)]
+    return _data_cache
 
 @app.route('/')
 def dashboard():
     """Main dashboard page"""
-    return render_template('index.html')
+    try:
+        watches = get_watch_data()
+        stats = get_stats_simple(watches)
+        
+        return render_template('index.html', 
+                             total_watches=stats['total_watches'],
+                             total_sites=stats['total_sites'],
+                             total_brands=stats['total_brands'])
+    except Exception as e:
+        print(f"Dashboard error: {e}")
+        return render_template('index.html', 
+                             total_watches=0,
+                             total_sites=0,
+                             total_brands=0)
+
+@app.route('/api/data')
+def api_data():
+    """API endpoint for watch data"""
+    try:
+        watches = get_watch_data()
+        query = request.args.get('search', '')
+        
+        if query:
+            watches = search_watches(watches, query)
+        
+        # Limit to first 100 for performance
+        limited_watches = watches[:100]
+        
+        return jsonify({
+            'status': 'success',
+            'data': limited_watches,
+            'total': len(watches),
+            'displayed': len(limited_watches)
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
 
 @app.route('/api/stats')
-def get_stats():
-    """Get dashboard statistics"""
+def api_stats():
+    """API endpoint for statistics"""
     try:
-        df = load_watch_data()
+        watches = get_watch_data()
+        stats = get_stats_simple(watches)
         
-        if df.empty:
-            return jsonify({
-                'total_products': 0,
-                'active_sites': 0,
-                'avg_price': 0,
-                'top_brands': 0,
-                'min_price': 0,
-                'max_price': 0
-            })
+        return jsonify({
+            'status': 'success',
+            'stats': stats
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/api/charts/brands')
+def api_chart_brands():
+    """API endpoint for brand distribution chart"""
+    try:
+        watches = get_watch_data()
+        distribution = get_brand_distribution(watches)
         
-        stats = {
-            'total_products': len(df),
-            'active_sites': df['site'].nunique(),
-            'avg_price': round(df['price'].mean(), 2),
-            'top_brands': df['brand'].nunique(),
-            'min_price': df['price'].min(),
-            'max_price': df['price'].max(),
-            'last_updated': datetime.now().isoformat()
+        return jsonify({
+            'status': 'success',
+            'chart_data': distribution
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/api/charts/sites')
+def api_chart_sites():
+    """API endpoint for site distribution chart"""
+    try:
+        watches = get_watch_data()
+        distribution = get_site_distribution(watches)
+        
+        return jsonify({
+            'status': 'success',
+            'chart_data': distribution
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/api/export/csv')
+def export_csv():
+    """Export data as CSV"""
+    try:
+        watches = get_watch_data()
+        
+        # Create temporary CSV
+        output = []
+        output.append('title,price,currency,brand,site,url,model,condition,year')
+        
+        for watch in watches:
+            row = [
+                str(watch.get('title', '')).replace(',', ';'),
+                str(watch.get('price', 0)),
+                str(watch.get('currency', 'GBP')),
+                str(watch.get('brand', '')).replace(',', ';'),
+                str(watch.get('site', '')).replace(',', ';'),
+                str(watch.get('url', '')),
+                str(watch.get('model', '')).replace(',', ';'),
+                str(watch.get('condition', '')).replace(',', ';'),
+                str(watch.get('year', ''))
+            ]
+            output.append(','.join(row))
+        
+        csv_content = '\n'.join(output)
+        
+        from flask import Response
+        return Response(
+            csv_content,
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=watch_data.csv'}
+        )
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/api/export/json')
+def export_json():
+    """Export data as JSON"""
+    try:
+        watches = get_watch_data()
+        stats = get_stats_simple(watches)
+        
+        export_data = {
+            'export_date': datetime.now().isoformat(),
+            'statistics': stats,
+            'watches': watches
         }
         
-        return jsonify(stats)
-    
+        from flask import Response
+        return Response(
+            json.dumps(export_data, indent=2),
+            mimetype='application/json',
+            headers={'Content-Disposition': 'attachment; filename=watch_data.json'}
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/products')
-def get_products():
-    """Get all products with optional filtering"""
-    try:
-        df = load_watch_data()
-        
-        # Clean up the data for display
-        df = df.fillna('')
-        
-        # Ensure we have meaningful titles
-        for idx, row in df.iterrows():
-            if not row['title'] or row['title'] == 'nan' or str(row['title']).strip() == '':
-                # Create title from brand and model if available
-                brand = row.get('brand', '')
-                model = row.get('model', '')
-                if brand and model and brand != 'nan' and model != 'nan':
-                    df.at[idx, 'title'] = f"{brand} {model}"
-                elif brand and brand != 'nan':
-                    df.at[idx, 'title'] = f"{brand} Watch"
-                else:
-                    df.at[idx, 'title'] = "Watch"
-        
-        # Apply search filter if provided
-        search = request.args.get('search', '').lower()
-        if search:
-            mask = (df['title'].str.lower().str.contains(search, na=False) |
-                   df['brand'].str.lower().str.contains(search, na=False) |
-                   df['model'].str.lower().str.contains(search, na=False))
-            df = df[mask]
-        
-        # Sort by price descending
-        df = df.sort_values('price', ascending=False)
-        
-        # Convert to dict
-        products = df.to_dict('records')
-        
-        return jsonify(products)
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/brands')
-def get_brands():
-    """Get brand distribution"""
-    try:
-        df = load_watch_data()
-        
-        if df.empty:
-            return jsonify({})
-        
-        # Clean up brand data - remove NaN and empty values
-        df = df[df['brand'].notna() & (df['brand'] != '') & (df['brand'] != 'nan')]
-        
-        # Count products by brand
-        brand_counts = df['brand'].value_counts().to_dict()
-        
-        return jsonify(brand_counts)
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/sites')
-def get_sites():
-    """Get site distribution"""
-    try:
-        df = load_watch_data()
-        
-        if df.empty:
-            return jsonify({})
-        
-        # Count products by site
-        site_counts = df['site'].value_counts().to_dict()
-        
-        return jsonify(site_counts)
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/export/<format>')
-def export_data(format):
-    """Export data in various formats"""
-    try:
-        df = load_watch_data()
-        
-        if df.empty:
-            return jsonify({'error': 'No data to export'}), 400
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        if format == 'csv':
-            filename = f'watch_data_{timestamp}.csv'
-            filepath = DATA_DIR / filename
-            df.to_csv(filepath, index=False)
-            return send_file(filepath, as_attachment=True, download_name=filename)
-        
-        elif format == 'json':
-            filename = f'watch_data_{timestamp}.json'
-            filepath = DATA_DIR / filename
-            df.to_json(filepath, orient='records', indent=2)
-            return send_file(filepath, as_attachment=True, download_name=filename)
-        
-        elif format == 'excel':
-            filename = f'watch_data_{timestamp}.xlsx'
-            filepath = DATA_DIR / filename
-            
-            with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
-                # All data
-                df.to_excel(writer, sheet_name='All Products', index=False)
-                
-                # By brand
-                for brand in df['brand'].unique():
-                    if pd.notna(brand):
-                        brand_data = df[df['brand'] == brand]
-                        sheet_name = str(brand)[:31]  # Excel sheet name limit
-                        brand_data.to_excel(writer, sheet_name=sheet_name, index=False)
-                
-                # Summary sheet
-                summary = pd.DataFrame({
-                    'Metric': ['Total Products', 'Average Price', 'Min Price', 'Max Price', 'Unique Brands', 'Unique Sites'],
-                    'Value': [
-                        len(df),
-                        f"£{df['price'].mean():.2f}",
-                        f"£{df['price'].min():.2f}",
-                        f"£{df['price'].max():.2f}",
-                        df['brand'].nunique(),
-                        df['site'].nunique()
-                    ]
-                })
-                summary.to_excel(writer, sheet_name='Summary', index=False)
-            
-            return send_file(filepath, as_attachment=True, download_name=filename)
-        
-        else:
-            return jsonify({'error': 'Invalid format'}), 400
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/scrape', methods=['POST'])
-def run_scraper():
-    """Run the scraper system"""
-    try:
-        # Run the data collection script
-        script_path = project_root / 'collect_real_data.py'
-        
-        if script_path.exists():
-            result = subprocess.run(
-                [sys.executable, str(script_path)],
-                capture_output=True,
-                text=True,
-                cwd=str(project_root)
-            )
-            
-            if result.returncode == 0:
-                return jsonify({
-                    'success': True,
-                    'message': 'Scraper completed successfully',
-                    'output': result.stdout
-                })
-            else:
-                return jsonify({
-                    'success': False,
-                    'error': result.stderr or 'Scraper failed',
-                    'output': result.stdout
-                })
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Scraper script not found'
-            })
-    
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
-
-@app.route('/api/report')
-def generate_report():
-    """Generate detailed analysis report"""
-    try:
-        df = load_watch_data()
-        
-        if df.empty:
-            return "No data available for report generation"
-        
-        # Generate comprehensive report
-        report_html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Watch Market Analysis Report</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 40px; }}
-                .header {{ background: #f0f8ff; padding: 20px; border-radius: 8px; }}
-                .section {{ margin: 20px 0; }}
-                .stat {{ background: #f9f9f9; padding: 15px; margin: 10px 0; border-left: 4px solid #007bff; }}
-                table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
-                th {{ background-color: #f2f2f2; }}
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>Watch Market Analysis Report</h1>
-                <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            </div>
-            
-            <div class="section">
-                <h2>Executive Summary</h2>
-                <div class="stat">Total Products Analyzed: {len(df)}</div>
-                <div class="stat">Average Price: £{df['price'].mean():.2f}</div>
-                <div class="stat">Price Range: £{df['price'].min():.2f} - £{df['price'].max():.2f}</div>
-                <div class="stat">Market Coverage: {df['site'].nunique()} competitor websites</div>
-            </div>
-            
-            <div class="section">
-                <h2>Brand Analysis</h2>
-                <table>
-                    <tr><th>Brand</th><th>Products</th><th>Avg Price</th><th>Market Share</th></tr>
-        """
-        
-        brand_analysis = df.groupby('brand').agg({
-            'price': ['count', 'mean']
-        }).round(2)
-        
-        for brand in brand_analysis.index:
-            count = brand_analysis.loc[brand, ('price', 'count')]
-            avg_price = brand_analysis.loc[brand, ('price', 'mean')]
-            market_share = (count / len(df) * 100)
-            
-            report_html += f"""
-                <tr>
-                    <td>{brand}</td>
-                    <td>{count}</td>
-                    <td>£{avg_price:.2f}</td>
-                    <td>{market_share:.1f}%</td>
-                </tr>
-            """
-        
-        report_html += """
-                </table>
-            </div>
-            
-            <div class="section">
-                <h2>Site Performance</h2>
-                <table>
-                    <tr><th>Site</th><th>Products</th><th>Avg Price</th></tr>
-        """
-        
-        site_analysis = df.groupby('site').agg({
-            'price': ['count', 'mean']
-        }).round(2)
-        
-        for site in site_analysis.index:
-            count = site_analysis.loc[site, ('price', 'count')]
-            avg_price = site_analysis.loc[site, ('price', 'mean')]
-            
-            report_html += f"""
-                <tr>
-                    <td>{site}</td>
-                    <td>{count}</td>
-                    <td>£{avg_price:.2f}</td>
-                </tr>
-            """
-        
-        report_html += """
-                </table>
-            </div>
-            
-            <div class="section">
-                <h2>Pricing Recommendations</h2>
-                <p>Based on current market analysis:</p>
-                <ul>
-                    <li>Consider pricing luxury watches 5-10% below market average for competitive advantage</li>
-                    <li>Monitor price fluctuations weekly for optimal positioning</li>
-                    <li>Focus on high-demand brands: """ + ", ".join(df['brand'].value_counts().head(3).index.tolist()) + """</li>
-                </ul>
-            </div>
-        </body>
-        </html>
-        """
-        
-        return report_html
-    
-    except Exception as e:
-        return f"Error generating report: {str(e)}"
+        return jsonify({'status': 'error', 'message': str(e)})
 
 if __name__ == '__main__':
-    print("🚀 Starting Watch Scraping Dashboard...")
-    print("📊 Professional UI with real-time data")
-    print("🌐 Open http://localhost:5000 in your browser")
-    print()
+    print("🚀 Starting Professional Watch Scraping Dashboard (No-Pandas Version)")
+    print("=" * 60)
     
     # Ensure data directory exists
-    DATA_DIR.mkdir(exist_ok=True)
+    data_dir = project_root / 'data'
+    data_dir.mkdir(exist_ok=True)
     
     # Check if we have data
-    if CONSOLIDATED_FILE.exists():
-        df = pd.read_csv(CONSOLIDATED_FILE)
-        print(f"✅ Loaded {len(df)} products from {df['site'].nunique()} sites")
+    csv_file = data_dir / 'consolidated_watches_live.csv'
+    if csv_file.exists():
+        watches = load_watch_data_simple()
+        print(f"✅ Loaded {len(watches)} products")
     else:
         print("⚠️  No data file found - dashboard will show empty state")
     
