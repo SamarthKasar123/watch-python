@@ -207,86 +207,6 @@
             font-size: 0.9rem;
         }
 
-        /* Status Section Styles */
-        .status-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-            padding: 1rem;
-            background: var(--dark-card);
-            border-radius: 12px;
-            border: 1px solid var(--dark-border);
-        }
-
-        .status-card, .info-card {
-            background: var(--dark-bg);
-            border-radius: 8px;
-            padding: 1.5rem;
-            border: 1px solid var(--dark-border);
-        }
-
-        .status-header, .info-header {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-            font-weight: 600;
-            color: var(--light-text);
-        }
-
-        .status-indicators {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-
-        .indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.9rem;
-            color: var(--secondary-text);
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        .status-dot.active {
-            background: #10b981;
-            box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
-        }
-
-        .status-dot.pending {
-            background: #f59e0b;
-            box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
-        }
-
-        .status-dot.error {
-            background: #ef4444;
-            box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
-        }
-
-        .info-content ul {
-            margin: 0.5rem 0 0 1rem;
-            color: var(--secondary-text);
-        }
-
-        .info-content li {
-            margin-bottom: 0.5rem;
-        }
-
-        @media (max-width: 768px) {
-            .status-section {
-                grid-template-columns: 1fr;
-                gap: 1rem;
-            }
-        }
-
         .main-content {
             max-width: 1400px;
             margin: 0 auto;
@@ -600,49 +520,6 @@
         </header>
 
         <main class="main-content">
-            <!-- System Status Section -->
-            <div class="status-section">
-                <div class="status-card">
-                    <div class="status-header">
-                        <i class="fas fa-server"></i>
-                        <span>System Status</span>
-                    </div>
-                    <div class="status-indicators">
-                        <div class="indicator">
-                            <span class="status-dot active"></span>
-                            <span>Dashboard Online</span>
-                        </div>
-                        <div class="indicator">
-                            <span class="status-dot active"></span>
-                            <span>API Connected</span>
-                        </div>
-                        <div class="indicator">
-                            <span class="status-dot pending"></span>
-                            <span>Scraper Ready (API Keys Required)</span>
-                        </div>
-                        <div class="indicator">
-                            <span class="status-dot" id="dataStatus"></span>
-                            <span id="dataStatusText">Checking Data...</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="info-card">
-                    <div class="info-header">
-                        <i class="fas fa-info-circle"></i>
-                        <span>Next Steps</span>
-                    </div>
-                    <div class="info-content">
-                        <p>📋 <strong>To complete setup:</strong></p>
-                        <ul>
-                            <li>🔑 Provide API keys for competitor sites</li>
-                            <li>⚙️ Configure scraping intervals</li>
-                            <li>📊 Enable full competitive intelligence</li>
-                            <li>🚀 Launch automated monitoring</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
             <!-- Stats Grid -->
             <div class="stats-grid">
                 <div class="stat-card">
@@ -812,9 +689,6 @@
                 const brandsResult = await brandsResponse.json();
                 updateChart(brandsResult.chart_data || brandsResult);
 
-                // Update system status
-                updateSystemStatus(currentData?.length || 0);
-
                 console.log('✅ Dashboard loaded successfully:', {
                     products: currentData?.length || 0,
                     stats: statsResult.stats || statsResult
@@ -822,23 +696,7 @@
 
             } catch (error) {
                 console.error('❌ Error loading dashboard data:', error);
-                updateSystemStatus(0, true);
-            }
-        }
-
-        function updateSystemStatus(dataCount, hasError = false) {
-            const statusDot = document.getElementById('dataStatus');
-            const statusText = document.getElementById('dataStatusText');
-            
-            if (hasError) {
-                statusDot.className = 'status-dot error';
-                statusText.textContent = 'Data Loading Error';
-            } else if (dataCount > 0) {
-                statusDot.className = 'status-dot active';
-                statusText.textContent = `${dataCount} Products Loaded`;
-            } else {
-                statusDot.className = 'status-dot pending';
-                statusText.textContent = 'No Data Available';
+                alert('❌ Error loading dashboard data. Please refresh the page.');
             }
         }
 
@@ -1011,11 +869,24 @@
         }
 
         function exportData(format) {
-            window.location.href = `/api/export/${format}`;
+            try {
+                if (format === 'csv') {
+                    window.location.href = '/api/export/csv';
+                } else if (format === 'json') {
+                    window.location.href = '/api/export/json';
+                }
+            } catch (error) {
+                alert('❌ Export error: ' + error.message);
+            }
         }
 
         function generateReport() {
-            window.open('/api/report', '_blank');
+            try {
+                // Use the downloadReport function instead
+                downloadReport();
+            } catch (error) {
+                alert('❌ Report generation error: ' + error.message);
+            }
         }
 
         // Enhanced Functions for Professional Dashboard
@@ -1048,19 +919,31 @@
             }
             
             try {
-                // In a real implementation, this would call an API to clear data
-                // For now, we'll simulate it
-                alert('🗑️ Data clearing functionality will be implemented when API keys are provided.\n\nThis will:\n• Delete all scraped products\n• Clear the database\n• Reset all statistics\n• Allow fresh scraping start');
+                const response = await fetch('/api/clear-all-data', { method: 'POST' });
+                const result = await response.json();
                 
-                // Simulate cleared state
-                currentData = [];
-                updateProductsList([]);
-                updateStats({
-                    total_watches: 0,
-                    total_sites: 0,
-                    total_brands: 0,
-                    avg_price: 0
-                });
+                if (result.status === 'success') {
+                    alert('🗑️ All data cleared successfully!\n\nBackup created: ' + (result.backup_created || 'N/A'));
+                    
+                    // Update UI to show empty state
+                    currentData = [];
+                    updateProductsList([]);
+                    updateStats({
+                        total_watches: 0,
+                        total_sites: 0,
+                        total_brands: 0,
+                        avg_price: 0
+                    });
+                    
+                    // Clear chart
+                    if (window.myChart) {
+                        window.myChart.data.labels = [];
+                        window.myChart.data.datasets[0].data = [];
+                        window.myChart.update();
+                    }
+                } else {
+                    alert('❌ Error clearing data: ' + result.message);
+                }
                 
             } catch (error) {
                 alert('❌ Error clearing data: ' + error.message);
@@ -1120,14 +1003,14 @@
                 .map(([brand, count]) => ({ brand, count }));
         }
 
-        // Enhanced scraper with progress tracking
+        // Enhanced scraper with real multi-site scraping
         async function runScraper() {
             if (isScrapingActive) {
                 alert('⚠️ Scraping is already in progress!');
                 return;
             }
             
-            const confirmStart = confirm('🚀 Start competitive intelligence scraping?\n\n📊 This will:\n• Scan competitor websites\n• Collect product data\n• Update price intelligence\n• Refresh dashboard analytics\n\nNote: Full scraping will be enabled once API keys are configured.');
+            const confirmStart = confirm('🚀 Start scraping ALL competitor websites?\n\n📊 This will scrape:\n• ChronoFinder\n• BQ Watches\n• Prestigious Jewellers\n• Watch Trader\n• Watch Collectors\n• Luxury Watch Company\n• Watches.co.uk\n• UK Specialist Watches\n• Watch Buyers\n• Watch The Time\n• Trilogy Jewellers\n\nThis may take 5-10 minutes. Continue?');
             
             if (!confirmStart) return;
             
@@ -1137,26 +1020,17 @@
             
             runBtn.style.display = 'none';
             stopBtn.style.display = 'inline-flex';
+            stopBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scraping All Sites...';
             
             try {
-                // Simulate progressive scraping
-                const sites = ['ChronoFinder', 'BQ Watches', 'Crown & Caliber', 'Hodinkee Shop', 'Tourneau'];
+                const response = await fetch('/api/scrape-all', { method: 'POST' });
+                const result = await response.json();
                 
-                for (let i = 0; i < sites.length && isScrapingActive; i++) {
-                    const site = sites[i];
-                    stopBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Scraping ${site}...`;
-                    
-                    // Simulate scraping delay
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    
-                    if (isScrapingActive) {
-                        console.log(`✅ Completed scraping ${site}`);
-                    }
-                }
-                
-                if (isScrapingActive) {
+                if (result.status === 'success') {
                     await loadDashboardData();
-                    alert('🎉 Scraping completed successfully!\n\n📈 Dashboard updated with latest competitive data.');
+                    alert(`🎉 Scraping completed successfully!\n\n� Results:\n• ${result.products_found} products found\n• ${result.sites_scraped.length} sites scraped\n\nDashboard updated with fresh competitive data!`);
+                } else {
+                    alert('❌ Scraping failed: ' + result.message);
                 }
                 
             } catch (error) {
@@ -1187,12 +1061,6 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Professional Watch Intelligence Dashboard Loaded');
             enableAutoRefresh();
-            
-            // Add loading states
-            document.getElementById('totalProducts').textContent = 'Loading...';
-            document.getElementById('activeSites').textContent = 'Loading...';
-            document.getElementById('avgPrice').textContent = 'Loading...';
-            document.getElementById('topBrands').textContent = 'Loading...';
         });
     </script>
 </body>

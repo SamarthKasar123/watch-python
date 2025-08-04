@@ -387,6 +387,93 @@ def advanced_analytics():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
 
+@app.route('/api/scrape-all', methods=['POST'])
+def scrape_all_sites():
+    """Run the real scraper for all competitor sites"""
+    try:
+        import subprocess
+        import sys
+        
+        print("🚀 Starting real multi-site scraping...")
+        
+        # Run the real scraper
+        result = subprocess.run([
+            sys.executable, 'real_scraper.py'
+        ], capture_output=True, text=True, cwd=project_root)
+        
+        if result.returncode == 0:
+            # Reload data after scraping
+            global _data_cache, _cache_time
+            _data_cache = None
+            _cache_time = None
+            
+            new_data = get_watch_data()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'All competitor sites scraped successfully!',
+                'products_found': len(new_data),
+                'sites_scraped': [
+                    'ChronoFinder',
+                    'BQ Watches', 
+                    'Prestigious Jewellers',
+                    'Watch Trader',
+                    'Watch Collectors',
+                    'Luxury Watch Company',
+                    'Watches.co.uk',
+                    'UK Specialist Watches',
+                    'Watch Buyers',
+                    'Watch The Time',
+                    'Trilogy Jewellers'
+                ],
+                'scraper_output': result.stdout
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Scraping failed',
+                'error_output': result.stderr
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Scraping error: {str(e)}'
+        })
+
+@app.route('/api/clear-all-data', methods=['POST'])
+def clear_all_data():
+    """Clear all scraped data"""
+    try:
+        # Clear the CSV file
+        if CSV_FILE.exists():
+            # Create backup
+            backup_file = CSV_FILE.parent / f'backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            import shutil
+            shutil.copy2(CSV_FILE, backup_file)
+            
+            # Clear main file
+            with open(CSV_FILE, 'w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                writer.writerow(['url', 'site', 'title', 'price', 'currency', 'brand', 'model', 'reference', 'condition', 'description', 'images', 'availability', 'specifications', 'year', 'dial_color', 'bracelet_material', 'case_material', 'movement'])
+        
+        # Clear cache
+        global _data_cache, _cache_time
+        _data_cache = None
+        _cache_time = None
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'All data cleared successfully!',
+            'backup_created': str(backup_file) if CSV_FILE.exists() else None
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Error clearing data: {str(e)}'
+        })
+
 if __name__ == '__main__':
     print("🚀 Starting Professional Watch Scraping Dashboard (Self-Contained Version)")
     print("=" * 70)
