@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch Price Intelligence Dashboard</title>
+    <link        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Responsive design */
+        @media (max-width: 1024px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+            
+            .chart-container {
+                height: 350px;
+            }
+            
+            .chart-wrapper {
+                height: 250px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 300px;
+                padding: 1rem;
+            }
+            
+            .chart-wrapper {
+                height: 200px;
+            }
+            
+            .main-content {
+                padding: 1rem;
+            }
+        }"https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #3b82f6;
+            --primary-dark: #1e40af;
+            --secondary-color: #64748b;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-bg: #0f172a;
+            --dark-card: #1e293b;
+            --dark-border: #334155;
+            --light-text: #f8fafc;
+            --muted-text: #94a3b8;
+            --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --gradient-4: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--dark-bg);
+            color: var(--light-text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .dashboard-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        }
+
+        .header {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--dark-border);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--light-text);
+        }
+
+        .logo i {
+            color: var(--primary-color);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--light-text);
+            border: 1px solid var(--dark-border);
+        }
+
+        .btn-outline:hover {
+            background: var(--dark-card);
+            border-color: var(--primary-color);
+        }
+
+        .main-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--gradient-1);
+        }
+
+        .stat-card.gradient-2::before { background: var(--gradient-2); }
+        .stat-card.gradient-3::before { background: var(--gradient-3); }
+        .stat-card.gradient-4::before { background: var(--gradient-4); }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .stat-title {
+            color: var(--muted-text);
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .stat-icon.bg-1 { background: var(--gradient-1); }
+        .stat-icon.bg-2 { background: var(--gradient-2); }
+        .stat-icon.bg-3 { background: var(--gradient-3); }
+        .stat-icon.bg-4 { background: var(--gradient-4); }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--light-text);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-change {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.875rem;
+        }
+
+        .stat-change.positive {
+            color: var(--success-color);
+        }
+
+        .stat-change.negative {
+            color: var(--danger-color);
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-container {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            height: 400px; /* Fixed height */
+            max-height: 400px;
+            overflow: hidden;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 300px; /* Fixed chart height */
+            width: 100%;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .chart-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--light-text);
+        }
+
+        .products-section {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--light-text);
+        }
+
+        .search-box {
+            padding: 0.5rem 1rem;
+            background: var(--dark-bg);
+            border: 1px solid var(--dark-border);
+            border-radius: 8px;
+            color: var(--light-text);
+            width: 250px;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .products-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .product-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid var(--dark-border);
+            transition: background 0.2s ease;
+        }
+
+        .product-item:hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .product-info h4 {
+            font-weight: 600;
+            color: var(--light-text);
+            margin-bottom: 0.25rem;
+        }
+
+        .product-meta {
+            color: var(--muted-text);
+            font-size: 0.875rem;
+        }
+
+        .product-price {
+            font-weight: 700;
+            font-size: 1.125rem;
+            color: var(--success-color);
+        }
+
+        .site-badge {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            color: var(--muted-text);
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--dark-border);
+            border-top: 2px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .export-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .export-card {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .export-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .export-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .search-box {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    Watch Price Intelligence
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-outline" onclick="refreshData()">
+                        <i class="fas fa-sync-alt"></i>
+                        Refresh
+                    </button>
+                    <button class="btn btn-primary" onclick="runScraper()">
+                        <i class="fas fa-play"></i>
+                        Run Scraper
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">Total Products</div>
+                        <div class="stat-icon bg-1">
+                            <i class="fas fa-shopping-bag"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="totalProducts">-</div>
+                    <div class="stat-change positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>12% from last week</span>
+                    </div>
+                </div>
+
+                <div class="stat-card gradient-2">
+                    <div class="stat-header">
+                        <div class="stat-title">Active Sites</div>
+                        <div class="stat-icon bg-2">
+                            <i class="fas fa-globe"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="activeSites">-</div>
+                    <div class="stat-change positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>All sites operational</span>
+                    </div>
+                </div>
+
+                <div class="stat-card gradient-3">
+                    <div class="stat-header">
+                        <div class="stat-title">Average Price</div>
+                        <div class="stat-icon bg-3">
+                            <i class="fas fa-pound-sign"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="avgPrice">-</div>
+                    <div class="stat-change negative">
+                        <i class="fas fa-arrow-down"></i>
+                        <span>2% from last month</span>
+                    </div>
+                </div>
+
+                <div class="stat-card gradient-4">
+                    <div class="stat-header">
+                        <div class="stat-title">Top Brands</div>
+                        <div class="stat-icon bg-4">
+                            <i class="fas fa-crown"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="topBrands">-</div>
+                    <div class="stat-change positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>5 luxury brands</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Grid -->
+            <div class="content-grid">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Price Distribution by Brand</h3>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="priceChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="products-section">
+                    <div class="section-header">
+                        <h3 class="section-title">Recent Products</h3>
+                        <input type="text" class="search-box" placeholder="Search products..." id="searchInput">
+                    </div>
+                    <div class="products-list" id="productsList">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            Loading products...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Section -->
+            <div class="export-section">
+                <div class="export-card" onclick="exportData('csv')">
+                    <div class="export-icon bg-1">
+                        <i class="fas fa-file-csv"></i>
+                    </div>
+                    <h4>Export CSV</h4>
+                    <p>Download spreadsheet format</p>
+                </div>
+
+                <div class="export-card" onclick="exportData('json')">
+                    <div class="export-icon bg-2">
+                        <i class="fas fa-file-code"></i>
+                    </div>
+                    <h4>Export JSON</h4>
+                    <p>Download API format</p>
+                </div>
+
+                <div class="export-card" onclick="exportData('excel')">
+                    <div class="export-icon bg-3">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <h4>Export Excel</h4>
+                    <p>Download advanced format</p>
+                </div>
+
+                <div class="export-card" onclick="generateReport()">
+                    <div class="export-icon bg-4">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <h4>Generate Report</h4>
+                    <p>Create analysis report</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let currentData = [];
+        let priceChart = null;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboardData();
+            setupEventListeners();
+        });
+
+        // Debounce function to prevent excessive API calls
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        function setupEventListeners() {
+            const debouncedFilter = debounce(filterProducts, 300);
+            document.getElementById('searchInput').addEventListener('input', function(e) {
+                debouncedFilter(e.target.value);
+            });
+        }
+
+        async function loadDashboardData() {
+            try {
+                // Load stats
+                const statsResponse = await fetch('/api/stats');
+                const stats = await statsResponse.json();
+                updateStats(stats);
+
+                // Load products
+                const productsResponse = await fetch('/api/products');
+                const products = await productsResponse.json();
+                currentData = products;
+                updateProductsList(products);
+
+                // Load chart data
+                const brandsResponse = await fetch('/api/brands');
+                const brands = await brandsResponse.json();
+                updateChart(brands);
+
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+
+        function updateStats(stats) {
+            document.getElementById('totalProducts').textContent = stats.total_products || 0;
+            document.getElementById('activeSites').textContent = stats.active_sites || 0;
+            document.getElementById('avgPrice').textContent = stats.avg_price ? `£${stats.avg_price.toLocaleString()}` : '£0';
+            document.getElementById('topBrands').textContent = stats.top_brands || 0;
+        }
+
+        function updateProductsList(products) {
+            const container = document.getElementById('productsList');
+            
+            if (!products || products.length === 0) {
+                container.innerHTML = '<div class="loading">No products found</div>';
+                return;
+            }
+
+            container.innerHTML = products.slice(0, 10).map(product => {
+                // Clean up product data
+                const title = product.title && product.title !== 'nan' ? product.title : 'Watch';
+                const brand = product.brand && product.brand !== 'nan' ? product.brand : '';
+                const model = product.model && product.model !== 'nan' ? product.model : '';
+                const site = product.site || 'unknown';
+                const price = product.price || 0;
+                
+                const brandModel = [brand, model].filter(x => x).join(' ');
+                
+                return `
+                    <div class="product-item">
+                        <div class="product-info">
+                            <h4>${title}</h4>
+                            <div class="product-meta">
+                                <span class="site-badge">${site}</span>
+                                ${brandModel}
+                            </div>
+                        </div>
+                        <div class="product-price">£${price.toLocaleString()}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateChart(brands) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            if (priceChart) {
+                priceChart.destroy();
+            }
+
+            // Filter out any invalid brands
+            const validBrands = {};
+            Object.keys(brands).forEach(brand => {
+                if (brand && brand !== 'nan' && brand !== '' && brands[brand] > 0) {
+                    validBrands[brand] = brands[brand];
+                }
+            });
+
+            const brandNames = Object.keys(validBrands).slice(0, 6);
+            const brandCounts = brandNames.map(brand => validBrands[brand]);
+            
+            if (brandNames.length === 0) {
+                // Show empty state
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                ctx.fillStyle = '#64748b';
+                ctx.font = '16px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('No brand data available', ctx.canvas.width / 2, ctx.canvas.height / 2);
+                return;
+            }
+            
+            priceChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: brandNames,
+                    datasets: [{
+                        data: brandCounts,
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(239, 68, 68, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(245, 158, 11, 0.8)',
+                            'rgba(139, 92, 246, 0.8)',
+                            'rgba(236, 72, 153, 0.8)'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#1e293b'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 800 // Reduce animation time
+                    },
+                    interaction: {
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: '#f8fafc',
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#f8fafc',
+                            borderColor: '#334155',
+                            borderWidth: 1
+                        }
+                    }
+                }
+            });
+        }
+
+        function filterProducts(searchTerm) {
+            if (!searchTerm) {
+                updateProductsList(currentData);
+                return;
+            }
+
+            const filtered = currentData.filter(product => 
+                (product.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (product.brand || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (product.model || '').toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            updateProductsList(filtered);
+        }
+
+        async function refreshData() {
+            const button = event.target.closest('button');
+            const icon = button.querySelector('i');
+            
+            icon.classList.add('fa-spin');
+            
+            try {
+                await loadDashboardData();
+            } finally {
+                setTimeout(() => {
+                    icon.classList.remove('fa-spin');
+                }, 1000);
+            }
+        }
+
+        async function runScraper() {
+            const button = event.target.closest('button');
+            const originalText = button.innerHTML;
+            
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
+            button.disabled = true;
+            
+            try {
+                const response = await fetch('/api/scrape', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    await loadDashboardData();
+                    alert('Scraper completed successfully!');
+                } else {
+                    alert('Scraper failed: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error running scraper: ' + error.message);
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        function exportData(format) {
+            window.location.href = `/api/export/${format}`;
+        }
+
+        function generateReport() {
+            window.open('/api/report', '_blank');
+        }
+    </script>
+</body>
+</html>
