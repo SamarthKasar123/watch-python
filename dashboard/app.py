@@ -474,6 +474,39 @@ def clear_all_data():
             'message': f'Error clearing data: {str(e)}'
         })
 
+@app.route('/api/business-intelligence')
+def business_intelligence_status():
+    """Get business intelligence platform status"""
+    try:
+        return jsonify({
+            'status': 'success',
+            'platform': {
+                'name': 'Watch Business Intelligence Platform',
+                'version': '1.0.0',
+                'capabilities': [
+                    'Price Comparison (Chrono24 + Google Shopping)',
+                    'Competitor Scraping (11 sites)',
+                    'Product Matching & Analysis',
+                    'WooCommerce Integration',
+                    'Shopify Integration',
+                    'Automated Price Recommendations',
+                    'Business Intelligence Reports'
+                ],
+                'current_data': {
+                    'competitor_products': len(get_watch_data()),
+                    'last_scrape': 'Available on demand'
+                },
+                'next_steps': [
+                    'Provide WooCommerce API credentials',
+                    'Provide Shopify API credentials', 
+                    'Configure automatic scraping schedule',
+                    'Set price recommendation rules'
+                ]
+            }
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
 if __name__ == '__main__':
     print("🚀 Starting Professional Watch Scraping Dashboard (Self-Contained Version)")
     print("=" * 70)
