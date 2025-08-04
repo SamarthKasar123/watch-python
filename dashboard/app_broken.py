@@ -89,51 +89,9 @@ def get_stats_simple(watches):
         'price_range': [min_price, max_price]
     }
 
-def get_brand_distribution(watches):
-    """Get brand distribution for charts"""
-    brand_counts = {}
-    for watch in watches:
-        brand = watch.get('brand', 'Unknown')
-        if brand:
-            brand_counts[brand] = brand_counts.get(brand, 0) + 1
-    
-    # Sort by count and take top 10
-    sorted_brands = sorted(brand_counts.items(), key=lambda x: x[1], reverse=True)[:10]
-    
-    return {
-        'labels': [brand for brand, count in sorted_brands],
-        'data': [count for brand, count in sorted_brands]
-    }
-
-def get_site_distribution(watches):
-    """Get site distribution for charts"""
-    site_counts = {}
-    for watch in watches:
-        site = watch.get('site', 'Unknown')
-        if site:
-            site_counts[site] = site_counts.get(site, 0) + 1
-    
-    sorted_sites = sorted(site_counts.items(), key=lambda x: x[1], reverse=True)
-    
-    return {
-        'labels': [site for site, count in sorted_sites],
-        'data': [count for site, count in sorted_sites]
-    }
-
-def search_watches(watches, query):
-    """Search watches by title, brand, or model"""
-    if not query:
-        return watches
-    
-    query = query.lower()
-    results = []
-    
-    for watch in watches:
-        searchable_text = f"{watch.get('title', '')} {watch.get('brand', '')} {watch.get('model', '')}".lower()
-        if query in searchable_text:
-            results.append(watch)
-    
-    return results
+# Global data cache
+_data_cache = None
+_cache_time = None
 
 def get_watch_data():
     """Get watch data with simple caching"""
@@ -234,7 +192,7 @@ def export_csv():
     try:
         watches = get_watch_data()
         
-        # Create CSV content
+        # Create temporary CSV
         output = []
         output.append('title,price,currency,brand,site,url,model,condition,year')
         
@@ -254,6 +212,7 @@ def export_csv():
         
         csv_content = '\n'.join(output)
         
+        from flask import Response
         return Response(
             csv_content,
             mimetype='text/csv',
@@ -275,6 +234,7 @@ def export_json():
             'watches': watches
         }
         
+        from flask import Response
         return Response(
             json.dumps(export_data, indent=2),
             mimetype='application/json',
@@ -284,20 +244,20 @@ def export_json():
         return jsonify({'status': 'error', 'message': str(e)})
 
 if __name__ == '__main__':
-    print("🚀 Starting Professional Watch Scraping Dashboard (Self-Contained Version)")
-    print("=" * 70)
+    print("🚀 Starting Professional Watch Scraping Dashboard (No-Pandas Version)")
+    print("=" * 60)
     
     # Ensure data directory exists
-    DATA_DIR.mkdir(exist_ok=True)
+    data_dir = project_root / 'data'
+    data_dir.mkdir(exist_ok=True)
     
     # Check if we have data
-    if CSV_FILE.exists():
+    csv_file = data_dir / 'consolidated_watches_live.csv'
+    if csv_file.exists():
         watches = load_watch_data_simple()
         print(f"✅ Loaded {len(watches)} products")
     else:
         print("⚠️  No data file found - dashboard will show empty state")
-        print(f"📁 Looking for: {CSV_FILE}")
     
     port = int(os.environ.get('PORT', 5000))
-    print(f"🌐 Dashboard starting on port {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
